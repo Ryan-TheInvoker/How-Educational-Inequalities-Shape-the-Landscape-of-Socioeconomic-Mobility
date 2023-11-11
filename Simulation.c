@@ -6,7 +6,12 @@
 2) Birth and Death: Implement birth and death processes, where new individuals
  are born with the average status of their neighbors and individuals die based on age or other factors, leaving vacancies in the grid.
 */
-
+double SA_injury = 0.05;
+double GER_injury = 0.005;
+double SA_schol =0.01;
+double GER_schol = 0.1;
+#define INJURY SA_injury
+#define SCHOLARSHIP SA_schol
 int countInjury =0;
 int countScholar = 0;
 
@@ -24,9 +29,9 @@ int countScholar = 0;
 #define NUM_SOCIOECONOMIC_STATES 5
 #define NUM_EVENTS 3
 
-#define TIME_STEPS 300
+#define TIME_STEPS 5000
 
-#define INTERVAL_OF_GRID_PLOTS 2
+#define INTERVAL_OF_GRID_PLOTS 100
 
 //#define POVERTY_THRESHOLD 1058
 //#define MINIMUM_WAGE 4067
@@ -193,8 +198,8 @@ double influenceWeights[NEIGHBORHOOD_SIZE] = {
 void initializeGrid(Grid grid) {
     for (int i = 0; i < GRID_HEIGHT; ++i) {
         for (int j = 0; j < GRID_WIDTH; ++j) {
-            grid[i][j].education_level = 0;//(int)(drand48() *  NUM_EDUCATION_STATES);
-            grid[i][j].socioeconomic_status = 0;//(int)(drand48() * NUM_SOCIOECONOMIC_STATES);
+            grid[i][j].education_level = (int)(drand48() *  NUM_EDUCATION_STATES);
+            grid[i][j].socioeconomic_status = (int)(drand48() * NUM_SOCIOECONOMIC_STATES);
             
             //grid[i][j].age = (int)(drand48() * 100);
             // Initialize other attributes...
@@ -767,7 +772,7 @@ void outputGridEcoState(Grid grid, int num, const char* baseFilename) {
 void deleteFilesMatchingPattern(const char *directory, const char *pattern) {
     DIR *dir;
     struct dirent *ent;
-    char filepath[256];
+    char filepath[512];
 
     if ((dir = opendir(directory)) != NULL) {
         while ((ent = readdir(dir)) != NULL) {
@@ -804,6 +809,8 @@ int main() {
     Grid society;
     initializeGrid(society);
 
+    double NSE = 1.5;
+    
     int timesteps = TIME_STEPS;
     
 
@@ -826,13 +833,13 @@ int main() {
     
     for (int i = 0; i < timesteps; ++i) {
         // Evolve the grid using Cellular Automata rules
-        evolveCellularAutomata(society,1.5);
+        evolveCellularAutomata(society,NSE);
 
         // Perform Markov Chain progression for each individual
         performMarkovChain(society);
 
         // Introduce random events using Monte Carlo sampling
-        performMonteCarloSampling(society,0.01,0.01);
+        performMonteCarloSampling(society,SCHOLARSHIP,INJURY);
 
         // Record data for analysis
         metricsArray[i] = calculateMetrics(society);    
@@ -880,7 +887,7 @@ int main() {
         for (int i = 0; i < timesteps; ++i) {
             
              // Evolve the grid using Cellular Automata rules
-            evolveCellularAutomata(society,1.5);
+            evolveCellularAutomata(society,NSE);
 
         // Perform Markov Chain progression for each individual
             performMarkovChain(society);
@@ -925,7 +932,7 @@ for (double k = 0; k < 0.3; k += 0.02)
     for (int i = 0; i < timesteps; ++i) {
         
         // Evolve the grid using Cellular Automata rules
-        evolveCellularAutomata(society,1.5);
+        evolveCellularAutomata(society,NSE);
 
         // Perform Markov Chain progression for each individual
         performMarkovChain(society);
@@ -948,7 +955,8 @@ fclose(file2);
 
 
 //**NSE VARIABLE**//
-    // File for NSE averages
+    //File for NSE averages
+    
     FILE *file_nse = fopen("nse_avgs.csv", "w");
     if (file_nse == NULL) {
         perror("Error opening file");
@@ -1040,24 +1048,60 @@ fclose(file2);
     fclose(file_nse);
 
 
-    //**ECONOMIC DEPRESSION FOR 100 timesteps **//
+    //**ECONOMIC DEPRESSION FOR  timesteps/10 in the middle **//
+    FILE *file_depression = fopen("depression.csv", "w");
+    if (file_depression == NULL) {
+        perror("Error opening file");
+        return -1;
+    }
+    fprintf(file_depression, "Timestep,GiniCoefficient,AverageEducationLevel,AverageSocioeconomicStatus,PovertyRate/Unemployed\n");
     for (int i = 0; i < timesteps; ++i) {
             
              // Evolve the grid using Cellular Automata rules
-            evolveCellularAutomata(society,1.5);
+            evolveCellularAutomata(society,NSE);
 
         // Perform Markov Chain progression for each individual
             performMarkovChain(society);
 
         // Introduce random events using Monte Carlo sampling
-            performMonteCarloSampling(society,0.2,0.005);
+            performMonteCarloSampling(society,SCHOLARSHIP,INJURY);
 
         // Record data for analysis
-            metricsArray_Scholarships[i] = calculateMetrics(society);  
-            edu_avg_of_avgs += metricsArray_Scholarships[i].averageEducationLevel;
-            eco_avg_of_avgs += metricsArray_Scholarships[i].averageSocioeconomicStatus;
+            metricsArray[i] = calculateMetrics(society);  
         }
 
+    for (int i = timesteps/2; i < timesteps/2 + timesteps/10; ++i) {
+            
+             // Evolve the grid using Cellular Automata rules
+            evolveCellularAutomata(society,NSE);
+
+        // Perform Markov Chain progression for each individual
+            performMarkovChain(society);
+
+        // Introduce random events using Monte Carlo sampling
+            performMonteCarloSampling(society,SCHOLARSHIP,0.2);
+
+        // Record data for analysis
+        metricsArray[i] = calculateMetrics(society);  
+        }
+
+    for (int i = timesteps/2 + timesteps/10; i < timesteps; ++i) {
+            
+             // Evolve the grid using Cellular Automata rules
+            evolveCellularAutomata(society,NSE);
+
+        // Perform Markov Chain progression for each individual
+            performMarkovChain(society);
+
+        // Introduce random events using Monte Carlo sampling
+            performMonteCarloSampling(society,SCHOLARSHIP,INJURY);
+
+        // Record data for analysis
+            metricsArray[i] = calculateMetrics(society);  
+        }
+        
+        writeMetricsToFile(metricsArray, timesteps, file_depression); 
+        fclose(file_depression);
 
     return 0;
 }
