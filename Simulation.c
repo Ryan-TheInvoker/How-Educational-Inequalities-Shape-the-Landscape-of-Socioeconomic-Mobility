@@ -6,10 +6,11 @@
 2) Birth and Death: Implement birth and death processes, where new individuals
  are born with the average status of their neighbors and individuals die based on age or other factors, leaving vacancies in the grid.
 */
-double SA_injury = 0.05;
+double SA_injury = 0.1;
 double GER_injury = 0.005;
 double SA_schol =0.01;
 double GER_schol = 0.1;
+#define NSE_glo  1.5 
 #define INJURY SA_injury
 #define SCHOLARSHIP SA_schol
 int countInjury =0;
@@ -79,6 +80,8 @@ typedef struct {
 
 // Define a grid of individuals.
 typedef Individual Grid[GRID_HEIGHT][GRID_WIDTH];
+
+void equilibrateSystem(Grid grid, double nse_value, int equilibration_steps);
 
 //
 void simulateLifeEvents(Individual *individual,double prob_scholarship,double prob_injury);
@@ -790,7 +793,14 @@ void deleteFilesMatchingPattern(const char *directory, const char *pattern) {
 }
 
 
-
+// This function runs the system for a certain number of equilibration steps and discards the data
+void equilibrateSystem(Grid grid, double nse_value, int equilibration_steps) {
+    for (int i = 0; i < equilibration_steps; ++i) {
+        evolveCellularAutomata(grid, nse_value);
+        performMarkovChain(grid);
+        performMonteCarloSampling(grid, 0.01, 0.01); // Use actual probabilities needed
+    }
+}
 
 
 
@@ -809,7 +819,7 @@ int main() {
     Grid society;
     initializeGrid(society);
 
-    double NSE = 1.5;
+    double NSE = NSE_glo;
     
     int timesteps = TIME_STEPS;
     
@@ -833,7 +843,7 @@ int main() {
     
     for (int i = 0; i < timesteps; ++i) {
         // Evolve the grid using Cellular Automata rules
-        evolveCellularAutomata(society,NSE);
+        evolveCellularAutomata(society,NSE_glo);
 
         // Perform Markov Chain progression for each individual
         performMarkovChain(society);
@@ -873,8 +883,8 @@ int main() {
    
     fprintf(file1, "Scholarship Probability, Average Education, Average Socioeconomic Status\n");
 
-    int edu_avg_of_avgs = 0;
-    int eco_avg_of_avgs = 0;
+    double sum_edu = 0;
+    double sum_eco = 0;
 
     double avgEdu_schol [100];
     double avgEco_schol [100];
@@ -882,12 +892,12 @@ int main() {
     for (double k =0; k<0.3; k+=0.02)
     {   
         initializeGrid(society);
-        edu_avg_of_avgs = 0;
-        eco_avg_of_avgs = 0;
+        sum_edu = 0;
+        sum_eco = 0;
         for (int i = 0; i < timesteps; ++i) {
             
              // Evolve the grid using Cellular Automata rules
-            evolveCellularAutomata(society,NSE);
+            evolveCellularAutomata(society,NSE_glo);
 
         // Perform Markov Chain progression for each individual
             performMarkovChain(society);
@@ -897,11 +907,11 @@ int main() {
 
         // Record data for analysis
             metricsArray_Scholarships[i] = calculateMetrics(society);  
-            edu_avg_of_avgs += metricsArray_Scholarships[i].averageEducationLevel;
-            eco_avg_of_avgs += metricsArray_Scholarships[i].averageSocioeconomicStatus;
+            sum_edu += metricsArray_Scholarships[i].averageEducationLevel;
+            sum_eco += metricsArray_Scholarships[i].averageSocioeconomicStatus;
         }
-        avgEdu_schol[(int)(k*5)] = edu_avg_of_avgs/((double)timesteps);
-        avgEco_schol[(int)(k*5)] = eco_avg_of_avgs/((double)timesteps);
+        avgEdu_schol[(int)(k*5)] = sum_edu/((double)timesteps);
+        avgEco_schol[(int)(k*5)] = sum_eco/((double)timesteps);
         fprintf(file1, "%lf, %lf, %lf\n", k, avgEdu_schol[(int)(k*5)], avgEco_schol[(int)(k*5)]);
     }
     fclose(file1);
@@ -917,8 +927,8 @@ if (file2 == NULL) {
 
 fprintf(file2, "Injury Probability, Average Education, Average Socioeconomic Status\n");
 
- edu_avg_of_avgs = 0;
- eco_avg_of_avgs = 0;
+ sum_edu = 0;
+ sum_eco = 0;
 
 double avgEdu_injury[100];
 double avgEco_injury[100];
@@ -927,12 +937,12 @@ double avgEco_injury[100];
 for (double k = 0; k < 0.3; k += 0.02)
 {   
     initializeGrid(society);
-    edu_avg_of_avgs = 0;
-    eco_avg_of_avgs = 0;
+    sum_edu = 0;
+    sum_eco = 0;
     for (int i = 0; i < timesteps; ++i) {
         
         // Evolve the grid using Cellular Automata rules
-        evolveCellularAutomata(society,NSE);
+        evolveCellularAutomata(society,NSE_glo);
 
         // Perform Markov Chain progression for each individual
         performMarkovChain(society);
@@ -943,11 +953,11 @@ for (double k = 0; k < 0.3; k += 0.02)
 
         // Record data for analysis
         Metrics metrics = calculateMetrics(society);  
-        edu_avg_of_avgs += metrics.averageEducationLevel;
-        eco_avg_of_avgs += metrics.averageSocioeconomicStatus;
+        sum_edu += metrics.averageEducationLevel;
+        sum_eco += metrics.averageSocioeconomicStatus;
     }
-    avgEdu_injury[(int)(k * 5)] = edu_avg_of_avgs / ((double)timesteps);
-    avgEco_injury[(int)(k * 5)] = eco_avg_of_avgs / ((double)timesteps);
+    avgEdu_injury[(int)(k * 5)] = sum_edu / ((double)timesteps);
+    avgEco_injury[(int)(k * 5)] = sum_eco / ((double)timesteps);
     fprintf(file2, "%lf, %lf, %lf\n", k, avgEdu_injury[(int)(k * 5)], avgEco_injury[(int)(k * 5)]);
 }
 fclose(file2);
@@ -963,10 +973,10 @@ fclose(file2);
         return -1;
     }
 
-    fprintf(file_nse, "NSE Value, Average Education, Average Socioeconomic Status\n");
+    fprintf(file_nse, "NSE Value, Average Education, Average Socioeconomic Status,Avg Edu Variance,Avg Eco Variance\n");
 
     // Loop for different NSE values
-    
+    int equilibration = 1000;
 
     for (double nse_value = 0.5; nse_value <= 1.4; nse_value += 0.1) {
         // Set the global NSE value
@@ -974,76 +984,101 @@ fclose(file2);
 
         initializeGrid(society); // Reinitialize the grid for each NSE value
 
-        int edu_avg_of_avgs = 0;
-        int eco_avg_of_avgs = 0;
+        double sum_edu = 0.0;
+        double sum_edu_squared = 0.0;
+        double sum_eco = 0.0;
+        double sum_eco_squared = 0.0;
 
-        for (int i = 0; i < timesteps; ++i) {
+        equilibrateSystem(society, nse_value, equilibration);
+
+        for (int i = equilibration; i < timesteps; ++i) {
             evolveCellularAutomata(society,nse_value);
             performMarkovChain(society);
             performMonteCarloSampling(society, 0.01, 0.01); // Example probabilities
 
             Metrics metrics = calculateMetrics(society);
-            edu_avg_of_avgs += metrics.averageEducationLevel;
-            eco_avg_of_avgs += metrics.averageSocioeconomicStatus;
+            sum_edu += metrics.averageEducationLevel;
+            sum_edu_squared += metrics.averageEducationLevel * metrics.averageEducationLevel;
+            sum_eco += metrics.averageSocioeconomicStatus;
+            sum_eco_squared += metrics.averageSocioeconomicStatus * metrics.averageSocioeconomicStatus;
         }
 
-        double avgEdu_nse = edu_avg_of_avgs / (double)timesteps;
-        double avgEco_nse = eco_avg_of_avgs / (double)timesteps;
+        double avgEdu_nse = sum_edu / (double)(timesteps-equilibration);
+        double avgEco_nse = sum_eco / (double)(timesteps-equilibration);
+        double varEdu = (sum_edu_squared / (double)timesteps-equilibration) - (avgEdu_nse * avgEdu_nse);
+        double varEco = (sum_eco_squared / (double)timesteps-equilibration) - (avgEco_nse * avgEco_nse);
 
-        fprintf(file_nse, "%lf, %lf, %lf\n", nse_value, avgEdu_nse, avgEco_nse);
+        fprintf(file_nse, "%lf, %lf, %lf, %lf, %lf\n", nse_value, avgEdu_nse, avgEco_nse,varEdu,varEco);
     }
 
     //
-        for (double nse_value = 1.4; nse_value <= 1.65; nse_value += 0.01) {
+    for (double nse_value = 1.3; nse_value <= 1.65; nse_value += 0.01) {
         // Set the global NSE value
         
 
         initializeGrid(society); // Reinitialize the grid for each NSE value
 
-        int edu_avg_of_avgs = 0;
-        int eco_avg_of_avgs = 0;
+        double sum_edu = 0.0;
+        double sum_edu_squared = 0.0;
+        double sum_eco = 0.0;
+        double sum_eco_squared = 0.0;
+        
+        equilibrateSystem(society, nse_value, equilibration);
 
-        for (int i = 0; i < timesteps; ++i) {
+        for (int i = equilibration; i < timesteps; ++i) {
             evolveCellularAutomata(society,nse_value);
             performMarkovChain(society);
             performMonteCarloSampling(society, 0.01, 0.01); // Example probabilities
 
             Metrics metrics = calculateMetrics(society);
-            edu_avg_of_avgs += metrics.averageEducationLevel;
-            eco_avg_of_avgs += metrics.averageSocioeconomicStatus;
+            sum_edu += metrics.averageEducationLevel;
+            sum_edu_squared += metrics.averageEducationLevel * metrics.averageEducationLevel;
+            sum_eco += metrics.averageSocioeconomicStatus;
+            sum_eco_squared += metrics.averageSocioeconomicStatus * metrics.averageSocioeconomicStatus;
         }
 
-        double avgEdu_nse = edu_avg_of_avgs / (double)timesteps;
-        double avgEco_nse = eco_avg_of_avgs / (double)timesteps;
+        double avgEdu_nse = sum_edu / (double)(timesteps-equilibration);
+        double avgEco_nse = sum_eco / (double)(timesteps-equilibration);
+        double varEdu = (sum_edu_squared / (double)(timesteps-equilibration)) - (avgEdu_nse * avgEdu_nse);
+        double varEco = (sum_eco_squared / (double)(timesteps-equilibration)) - (avgEco_nse * avgEco_nse);
 
-        fprintf(file_nse, "%lf, %lf, %lf\n", nse_value, avgEdu_nse, avgEco_nse);
+        fprintf(file_nse, "%lf, %lf, %lf, %lf, %lf\n", nse_value, avgEdu_nse, avgEco_nse,varEdu,varEco);
     }
 
 
-    for (double nse_value = 1.65; nse_value <= 2.0; nse_value += 0.1) {
+        for (double nse_value = 1.65; nse_value <= 2.0; nse_value += 0.1) {
         // Set the global NSE value
         
 
         initializeGrid(society); // Reinitialize the grid for each NSE value
 
-        int edu_avg_of_avgs = 0;
-        int eco_avg_of_avgs = 0;
+        double sum_edu = 0.0;
+        double sum_edu_squared = 0.0;
+        double sum_eco = 0.0;
+        double sum_eco_squared = 0.0;
+        
+        equilibrateSystem(society, nse_value, equilibration);
 
-        for (int i = 0; i < timesteps; ++i) {
-            evolveCellularAutomata(society,nse_value);
-            performMarkovChain(society);
-            performMonteCarloSampling(society, 0.01, 0.01); // Example probabilities
+            for (int i =equilibration; i < timesteps; ++i) {
 
-            Metrics metrics = calculateMetrics(society);
-            edu_avg_of_avgs += metrics.averageEducationLevel;
-            eco_avg_of_avgs += metrics.averageSocioeconomicStatus;
-        }
+                evolveCellularAutomata(society,nse_value);
+                performMarkovChain(society);
+                performMonteCarloSampling(society, 0.01, 0.01); // Example probabilities
 
-        double avgEdu_nse = edu_avg_of_avgs / (double)timesteps;
-        double avgEco_nse = eco_avg_of_avgs / (double)timesteps;
+                Metrics metrics = calculateMetrics(society);
+                sum_edu += metrics.averageEducationLevel;
+                sum_edu_squared += metrics.averageEducationLevel * metrics.averageEducationLevel;
+                sum_eco += metrics.averageSocioeconomicStatus;
+                sum_eco_squared += metrics.averageSocioeconomicStatus * metrics.averageSocioeconomicStatus;
+            }
 
-        fprintf(file_nse, "%lf, %lf, %lf\n", nse_value, avgEdu_nse, avgEco_nse);
-    }    
+        double avgEdu_nse = sum_edu / (double)(timesteps-equilibration);
+        double avgEco_nse = sum_eco / (double)(timesteps-equilibration);
+        double varEdu = (sum_edu_squared / (double)((timesteps-equilibration))) - (avgEdu_nse * avgEdu_nse);
+        double varEco = (sum_eco_squared / (double)(timesteps-equilibration)) - (avgEco_nse * avgEco_nse);
+
+        fprintf(file_nse, "%lf, %lf, %lf, %lf, %lf\n", nse_value, avgEdu_nse, avgEco_nse,varEdu,varEco);
+    }
 
     fclose(file_nse);
 
@@ -1058,7 +1093,7 @@ fclose(file2);
     for (int i = 0; i < timesteps; ++i) {
             
              // Evolve the grid using Cellular Automata rules
-            evolveCellularAutomata(society,NSE);
+            evolveCellularAutomata(society,NSE_glo);
 
         // Perform Markov Chain progression for each individual
             performMarkovChain(society);
@@ -1073,7 +1108,7 @@ fclose(file2);
     for (int i = timesteps/2; i < timesteps/2 + timesteps/10; ++i) {
             
              // Evolve the grid using Cellular Automata rules
-            evolveCellularAutomata(society,NSE);
+            evolveCellularAutomata(society,NSE_glo);
 
         // Perform Markov Chain progression for each individual
             performMarkovChain(society);
@@ -1088,7 +1123,7 @@ fclose(file2);
     for (int i = timesteps/2 + timesteps/10; i < timesteps; ++i) {
             
              // Evolve the grid using Cellular Automata rules
-            evolveCellularAutomata(society,NSE);
+            evolveCellularAutomata(society,NSE_glo);
 
         // Perform Markov Chain progression for each individual
             performMarkovChain(society);
